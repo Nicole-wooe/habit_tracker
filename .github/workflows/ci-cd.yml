@@ -87,9 +87,37 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+      - name: Build application image
+        run: |
+          docker build -t nicolewooe/habit-tracker:latest .
+
+      - name: Push application image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        run: |
+          docker push nicolewooe/habit-tracker:latest
+
+      - name: Pull deployment images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        run: |
+          docker pull postgres:16
+          docker pull redis:7
+          docker pull nginx:alpine
+
+      - name: Save deployment images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        run: |
+          docker save \
+            nicolewooe/habit-tracker:latest \
+            postgres:16 \
+            redis:7 \
+            nginx:alpine \
+            | gzip > deployment-images.tar.gz
+
+      - name: Upload deployment images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd' }}
-          tags: nicolewooe/habit-tracker:latest
+          name: deployment-images
+          path: deployment-images.tar.gz
+          retention-days: 1
+          
