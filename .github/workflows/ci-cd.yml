@@ -81,5 +81,43 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Docker image build
-        run: docker build -t habit-tracker:test .
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build application image
+        run: |
+          docker build -t nicolewooe/habit-tracker:latest .
+
+      - name: Push application image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        run: |
+          docker push nicolewooe/habit-tracker:latest
+
+      - name: Pull deployment images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        run: |
+          docker pull postgres:16
+          docker pull redis:7
+          docker pull nginx:alpine
+
+      - name: Save deployment images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        run: |
+          docker save \
+            nicolewooe/habit-tracker:latest \
+            postgres:16 \
+            redis:7 \
+            nginx:alpine \
+            | gzip > deployment-images.tar.gz
+
+      - name: Upload deployment images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/docker-ci-cd'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-images
+          path: deployment-images.tar.gz
+          retention-days: 1
+          
